@@ -1,0 +1,61 @@
+# A supressão de ruído do Conversinha, provada no compilador de verdade.
+#
+# O RNNoise só entra na DLL do Windows, e o MSVC é o único lugar onde a receita do
+# `third_party/rnnoise.cmake` se prova: no Mac de quem edita ele compila com clang, que
+# define sozinho os macros de SIMD que o MSVC não define.
+#
+# Dois trabalhos, porque são duas perguntas:
+#
+# - `supressor`: a classe e o RNNoise compilam com o cl.exe sob /W4 /WX, e o filtro FAZ o
+#   que promete — o teste roda num x64 com AVX2, o caminho que nenhum Mac exercita;
+# - `plugin`: o plugin inteiro entra num app Flutter de Windows. O exemplo do plugin tem o
+#   mesmo arranjo do app do Conversinha (projeto só em CXX, plugins sob /W4 /WX), então é
+#   aqui que aparece o que o teste isolado não vê: o C habilitado no diretório do plugin, a
+#   porta do método e o aviso de licença indo parar ao lado do .exe.
+#
+# Roda em todo push para um ramo `conversinha-*`, que é onde o remendo mora. O dia em que
+# ele for reaplicado sobre uma versão nova do plugin é o dia em que ela mais vale.
+name: Conversinha - RNNoise no MSVC
+
+on:
+  push:
+    branches: ['conversinha-*']
+  workflow_dispatch:
+
+jobs:
+  supressor:
+    runs-on: windows-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Compilar
+        run: |
+          cmake -S windows/teste -B build -A x64
+          cmake --build build --config Release
+
+      - name: Processador do runner
+        shell: pwsh
+        run: (Get-CimInstance Win32_Processor).Name
+
+      - name: Rodar a régua
+        run: build\Release\teste_supressor_rnnoise.exe
+
+  plugin:
+    runs-on: windows-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Compilar o exemplo do plugin
+        working-directory: example
+        run: flutter build windows --release
+
+      - name: O aviso de licença do RNNoise vai junto do .exe
+        shell: bash
+        run: test -f example/build/windows/x64/runner/Release/RNNoise-COPYING.txt

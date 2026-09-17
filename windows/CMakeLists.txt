@@ -1,6 +1,7 @@
 cmake_minimum_required(VERSION 3.15)
 set(PROJECT_NAME "flutter_webrtc")
-project(${PROJECT_NAME} LANGUAGES CXX)
+# C junto do C++ por causa do RNNoise, que é C (ver ../third_party/rnnoise.cmake)
+project(${PROJECT_NAME} LANGUAGES C CXX)
 
 if (CMAKE_VERSION VERSION_GREATER_EQUAL "3.24.0")
   cmake_policy(SET CMP0135 NEW)
@@ -8,6 +9,9 @@ endif()
 
 # Add the libwebrtc dependency
 include("${CMAKE_CURRENT_SOURCE_DIR}/../third_party/CMakeLists.txt")
+
+# A supressão de ruído do Conversinha (supressor_rnnoise.h)
+include("${CMAKE_CURRENT_SOURCE_DIR}/../third_party/rnnoise.cmake")
 
 # This value is used when generating builds using this plugin, so it must
 # not be changed
@@ -32,6 +36,7 @@ add_library(${PLUGIN_NAME} SHARED
   "application_loopback_capturer.cc"
   "loopback_capturer_factory.cc"
   "flutter_webrtc_plugin.cc"
+  "supressor_rnnoise.cc"
   "task_runner_windows.cc"
 )
 
@@ -54,6 +59,7 @@ target_include_directories(${PLUGIN_NAME} INTERFACE
 target_link_libraries(${PLUGIN_NAME} PRIVATE 
   flutter
   flutter_wrapper_plugin
+  rnnoise
   "${CMAKE_CURRENT_SOURCE_DIR}/../third_party/libwebrtc/lib/libwebrtc.dll.lib"
   avrt.lib
   ksuser.lib
@@ -67,5 +73,6 @@ target_link_libraries(${PLUGIN_NAME} PRIVATE
 # List of absolute paths to libraries that should be bundled with the plugin
 set(flutter_webrtc_bundled_libraries
   "${CMAKE_CURRENT_SOURCE_DIR}/../third_party/libwebrtc/lib/libwebrtc.dll"
+  "${RNNOISE_AVISO_DE_LICENCA}"
   PARENT_SCOPE
 )
