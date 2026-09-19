@@ -5,6 +5,7 @@
 // e cobra o que o app promete: desligado não toca em nada, ligado tira ruído sem comer a
 // voz, e o que não é 48 kHz passa direto. Devolve 0 quando tudo vale.
 
+#include <chrono>
 #include <cmath>
 #include <cstdio>
 #include <cstring>
@@ -155,6 +156,34 @@ int main() {
              "desligar vale no quadro seguinte");
     Conferir(supressor->quadros_filtrados() == kQuadros / 2,
              "só os quadros ligados foram contados");
+  }
+
+  {
+    // **Quanto custa por quadro.** O filtro roda dentro do processamento de captura, na
+    // linha de tempo do áudio: um quadro de 10 ms que demore 10 ms para ser filtrado é
+    // uma chamada picotada. Aqui ele processa 30 s de áudio e diz a fatia do orçamento
+    // que gastou.
+    //
+    // O teto é FROUXO de propósito (20% do tempo real) — o runner é compartilhado e uma
+    // medida apertada viraria falha por vizinho barulhento. Ele não persegue microssegundo:
+    // pega o dia em que o caminho vetorizado deixar de entrar e o custo virar outra ordem
+    // de grandeza, que é a regressão que importa.
+    auto* supressor = new SupressorRnnoise();
+    supressor->Initialize(kTaxa, 1);
+    supressor->Ligar(true);
+    const int quadros = 3000;  // 30 s
+    auto sinal = Ruido(quadros * kQuadro, 6);
+    const auto comeco = std::chrono::steady_clock::now();
+    for (int q = 0; q < quadros; ++q) {
+      supressor->Process(1, kQuadro, kQuadro, &sinal[q * kQuadro]);
+    }
+    const double us =
+        std::chrono::duration<double, std::micro>(std::chrono::steady_clock::now() - comeco)
+            .count();
+    const double por_quadro = us / quadros;
+    std::printf("      %.0f us por quadro de 10 ms — %.2f%% do tempo real\n", por_quadro,
+                por_quadro / 100.0);
+    Conferir(por_quadro < 2000, "o filtro cabe folgado no orçamento do quadro");
   }
 
   std::printf("%s\n", falhas == 0 ? "tudo certo" : "houve falhas");
